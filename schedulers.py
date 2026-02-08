@@ -4,6 +4,12 @@ from base import Process
 def run_fcfs_simulation(processes: list[Process]) -> dict:
     """
     Executes FCFS scheduling and returns a dictionary of results.
+
+    Args:
+        processes(Process): A list of the class Process.
+
+    Returns:
+        dict: A dictionary containing the individual results, and its averages.
     """
     if not processes:
         raise ValueError("Process list is empty!")
