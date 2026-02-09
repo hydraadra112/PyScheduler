@@ -1,37 +1,27 @@
 from base import Process
+from numbers import Number
 
-def calculate_waiting_time(current: Process, previous: Process | None = None) -> None:
+def calculate_waiting_time(arrival_time: int, prev_completion_time: int) -> Number:
     """ Calculate waiting time of a process 
     
     Args:
-        current(Process): The current process to calculate waiting time
-        previous(Process): The previous process to get waiting time of current process
+        arrival_time(int): The arrival time of the process to be passed
+        prev_completion_time(int): The completion time of the previous process 
     
     Returns:
-        None
+        Number
     """
-    if previous is None:
-        current.waiting_time = 0
-    else:
-        if previous.waiting_time is None:
-            raise ValueError(f"Cannot calculate: Previous Process (PID {previous.pid}) "
-                             "has no waiting time set.")
-        
-        current.waiting_time = previous.waiting_time + previous.burst_time
+    wait_time = prev_completion_time - arrival_time
+    return max(0, wait_time)
 
-def calculate_turnaround_time(current: Process) -> None:
+def calculate_turnaround_time(burst_time: int, waiting_time: int) -> Number:
     """ Calculate the turnaround time of a process
     
     Args:
-        current(Process): The current process to calculate turnaround time
+        burst_time(int): The burst time of the process to be passed down
+        waiting_time(int): The waiting time of the process to be passed down 
     
     Returns:
-        None
+        Number
     """
-    if not isinstance(current, Process):
-        raise ValueError("Input must be a Process instance.")
-        
-    if current.waiting_time is None:
-        raise ValueError(f"Waiting time for PID {current.pid} must be calculated first.")
-    
-    current.turnaround_time = current.waiting_time + current.burst_time
+    return burst_time + waiting_time
