@@ -1,4 +1,4 @@
-# **PyScheduler**
+# **Aevum**
 
 A unified Python module of CPU schedulers for educators and students, and for educational and simulation purposes.
 
