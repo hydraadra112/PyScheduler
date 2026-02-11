@@ -28,20 +28,7 @@ results = run_fcfs_simulation(ready_queue)
 print(f"Average Wait: {results['averages']['avg_waiting_time']}")
 
 # Low-Level Approach (For Experimentation and Control)
-from aevum.metrics import calculate_turnaround_time, calculate_waiting_time
-from aevum.base import ProcessResult
-
-results_list = []
-current_time = 0
-
-for proc in ready_queue:
-    # Calculate metrics using Aevum's core logic
-    wait = calculate_waiting_time(proc.arrival_time, current_time)
-    tat = calculate_turnaround_time(proc.burst_time, wait)
-    comp = proc.arrival_time + tat # or current_time + proc.burst_time (if idle accounted)
-
-    results_list.append(ProcessResult(proc, wait, tat, comp))
-    current_time = comp
+# COMING SOON!
 ```
 
 ---
@@ -51,11 +38,11 @@ for proc in ready_queue:
 Supported:
 
 - [x] First Count First Serve (FCFS)
+- [x] Shortest Job First (SJF)
+- [x] Shortest Time to Completion (STCF)
 
 Planned:
 
-- [ ] Shortest Job First (SJF)
-- [ ] Shortest Time to Completion (STCF)
 - [ ] Round Robin (RR)
 
 I will add more algorithms in the future, but I aim to finish the todo lists above before I publish it officially as a Python package.
