@@ -8,3 +8,12 @@ def is_sorted_by_arrival(processes: list[Process]) -> bool:
 def sort_processes_by_arrival(processes: list[Process]) -> list[Process]:
     """Returns a new list sorted by arrival time."""
     return sorted(processes, key=lambda p: p.arrival_time)
+
+def is_sorted_by_burst(processes: list[Process]) -> bool:
+    """Check if processes are ordered by arrival time."""
+    return all(processes[i].burst_time <= processes[i+1].burst_time
+               for i in range(len(processes) - 1))
+
+def sort_processes_by_burst(processes: list[Process]) -> list[Process]:
+    """Returns a new list sorted by arrival time."""
+    return sorted(processes, key=lambda p: p.burst_time)

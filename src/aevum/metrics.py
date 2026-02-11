@@ -25,3 +25,15 @@ def calculate_turnaround_time(burst_time: int, waiting_time: int) -> Number:
         Number
     """
     return burst_time + waiting_time
+
+def calculate_completion_time(arrival_time: int, turnaround_time: int) -> int:
+    """ Calculate the completion time of a process
+    
+    Args:
+        arrival_time(int): The arrival time of the process to be passed down
+        waiting_time(int): The turnarount time of the process to be passed down 
+    
+    Returns:
+        Number
+    """
+    return arrival_time + turnaround_time
