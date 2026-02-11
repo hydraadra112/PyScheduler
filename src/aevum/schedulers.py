@@ -1,5 +1,6 @@
 from base import Process, ProcessResult, Clock
 from utils import is_sorted_by_arrival, sort_processes_by_burst
+import heapq
 
 def run_fcfs_simulation(processes: list[Process]) -> dict:
     """
@@ -157,4 +158,93 @@ def run_sjf_simulation(processes: list[Process]) -> dict:
         }
     }
 
+def run_stcf_simulation(processes: list[Process]) -> dict:
+    """
+    Executes STCF scheduling using a priority queue (heapq) for efficiency.
 
+    Args:
+        processes(Process): A list of the class Process.
+
+    Returns:
+        dict: A dictionary containing the individual results, and its averages.
+    """
+    if not processes:
+        raise ValueError("Process list is empty!")
+
+    if not is_sorted_by_arrival(processes):
+        raise ValueError("STCF requires processes to be sorted by arrival time."
+        "Please use 'aevum.utils.sort_processes_by_arrival()' before passing the list.")
+
+    clock = Clock()
+    process_results: list[ProcessResult] = []
+    
+    # Priority Queue: (remaining_time, arrival_time, pid, process_object)
+    ready_heap = []
+    
+    # Track remaining times and original bursts (as Process is frozen)
+    remaining_times = {p.pid: p.burst_time for p in processes}
+    original_bursts = {p.pid: p.burst_time for p in processes}
+    
+    # Copy of processes to handle arrivals
+    ready_processes = list(processes)
+    current_job: Process = None
+
+    while ready_processes or ready_heap or current_job:
+        
+        # Handle Arrivals
+        new_arrival_occurred = False
+        while ready_processes and ready_processes[0].arrival_time <= clock.time:
+            p = ready_processes.pop(0)
+            heapq.heappush(ready_heap, (remaining_times[p.pid], p.arrival_time, p.pid, p))
+            new_arrival_occurred = True
+
+        # Preemption Check
+        # If a new process arrived, we must check if it's shorter than the current one
+        if new_arrival_occurred and current_job:
+            # Put current job back in heap to let heapq re-evaluate the shortest
+            heapq.heappush(ready_heap, (remaining_times[current_job.pid], current_job.arrival_time, current_job.pid, current_job))
+            current_job = None
+
+        # Pick Next Job if CPU is idle
+        if not current_job and ready_heap:
+            # Pop the tuple and extract the Process object (at index 3)
+            _, _, _, current_job = heapq.heappop(ready_heap)
+
+        # Execute 1 unit of work
+        if current_job:
+            remaining_times[current_job.pid] -= 1
+            
+            # Check if process is finished
+            if remaining_times[current_job.pid] == 0:
+                completion_time = clock.time + 1
+                turnaround_time = completion_time - current_job.arrival_time
+                waiting_time = turnaround_time - original_bursts[current_job.pid]
+
+                process_results.append(ProcessResult(
+                    process=current_job,
+                    waiting_time=waiting_time,
+                    turnaround_time=turnaround_time,
+                    completion_time=completion_time
+                ))
+                current_job = None 
+
+        clock.tick()
+
+    # Calculate Averages
+    avg_wait = sum(r.waiting_time for r in process_results) / len(process_results)
+    avg_tat = sum(r.turnaround_time for r in process_results) / len(process_results)
+
+    return {
+        "individual_results": [
+            {
+                "pid": r.process.pid,
+                "wait": r.waiting_time,
+                "turnaround": r.turnaround_time,
+                "completion": r.completion_time
+            } for r in process_results
+        ],
+        "averages": {
+            "avg_waiting_time": round(avg_wait, 2),
+            "avg_turnaround_time": round(avg_tat, 2)
+        }
+    }
