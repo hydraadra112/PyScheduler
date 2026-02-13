@@ -38,10 +38,7 @@ Supported:
 - [x] First Count First Serve (FCFS)
 - [x] Shortest Job First (SJF)
 - [x] Shortest Time to Completion (STCF)
-
-Planned:
-
-- [ ] Round Robin (RR)
+- [x] Round Robin (RR)
 
 I will add more algorithms in the future, but I aim to finish the todo lists above before I publish it officially as a Python package.
 
