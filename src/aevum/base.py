@@ -1,5 +1,6 @@
 from typing import List, Dict
-from policies import SchedulerPolicy
+from aevum.types import Process, ProcessResult
+from aevum.policies import SchedulerPolicy
 
 class Clock:
     def __init__(self):

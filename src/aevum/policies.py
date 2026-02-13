@@ -1,7 +1,6 @@
+from aevum.base import Process
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional
-from base import Process
-
 
 class SchedulerPolicy(ABC):
     """
