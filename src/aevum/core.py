@@ -47,127 +47,100 @@ class SimulationEngine:
     def __init__(self, policy: SchedulerPolicy, dispatch_latency: int = 0):
         self.policy = policy
         self.clock = Clock()
-        self.dispatcher = Dispatcher()
         self.dispatcher = Dispatcher(dispatch_latency=dispatch_latency)
         self.results: List[ProcessResult] = []
         self.trace_log: List[str] = []
+        self.total_idle_time = 0 # Professor 1's requested metric
+        self.total_switch_time = 0
         
     def run(self, processes: List[Process]) -> Dict:
-        """
-        The main logic for process execution with policies for queue and process handling
-
-        Args:
-            processes(list[Process]): A list of processes that you wish to execute
-
-        Returns:
-            dict: A dictionary formatted output
-        """
-        if not processes:
-            raise ValueError("Process list is empty")
-        
-        # 1. Setup
-        # We internally sort our processes by arrival time to ensure that the first one to arrive will
-        # be the one to picked out
         incoming = sorted(processes, key=lambda p: (p.arrival_time, p.pid))
- 
         ready_queue: List[Process] = []
         remaining_times = {p.pid: p.burst_time for p in incoming}
         
-        current_job_runtime = 0 # Tracks how long current job has been running (for RR)
-
+        current_job_runtime = 0 
         next_process: Optional[Process] = None
         current_process: Optional[Process] = None
 
-        # 2. The Loop
         while incoming or ready_queue or current_process or self.dispatcher.is_currently_switching:
-            
-            # A. Handle Arrivals
-            # We check arrivals before asking the policy so the policy sees everyone
+            # 1. Handle Arrivals (At the start of the tick)
             while incoming and incoming[0].arrival_time <= self.clock.time:
                 new_proc = incoming.pop(0)
                 ready_queue.append(new_proc)
                 self.trace_log.append(f"T={self.clock.time}: Process {new_proc.pid} arrived.")
 
-            # Condition to not change process during a context switch
+            # 2. Decision Logic
+            # We check if we need to switch even if current_process just finished
             if not self.dispatcher.is_currently_switching:
-                # B. Ask Policy for Decision (Policy Responsibility)
-                # We pass the mutable ready_queue so the policy can pop/append if needed
-
-                next_process = self.policy.get_next_process(
-                    ready_queue, 
-                    current_process, 
-                    current_job_runtime, 
-                    remaining_times
+                potential_next = self.policy.get_next_process(
+                    ready_queue, current_process, current_job_runtime, remaining_times
                 )
-            
-                # C. Detect & Handle Context Switch
-                if next_process != current_process:
+
+                if potential_next != current_process:
                     if self.dispatcher.dispatch_latency > 0:
-                        self.dispatcher.start_switch(next_process.pid if next_process else None)
-                        self.trace_log.append(f"T={self.clock.time}: STARTING SWITCH to P{next_process.pid if next_process else 'Idle'}")
+                        self.dispatcher.start_switch(potential_next.pid if potential_next else None)
+                        next_process = potential_next
+                        # Note: We don't clear current_process yet; it's being swapped out
+                        self.trace_log.append(f"T={self.clock.time}: STARTING SWITCH to P{potential_next.pid if potential_next else 'Idle'}")
                     else:
-                        current_process = next_process
+                        current_process = potential_next
                         current_job_runtime = 0
 
-            # D. Execute System Tick
+            # 3. Execution Phase
             if self.dispatcher.is_currently_switching:
-                # CPU is busy swapping context, no work done on processes!
+                self.total_switch_time += 1
                 self.dispatcher.tick()
                 self.trace_log.append(f"T={self.clock.time}: Dispatcher busy...")
-
-                # Automatically go to next process
-                # if latency is <= 0 
+                
                 if not self.dispatcher.is_currently_switching:
                     current_process = next_process
                     current_job_runtime = 0
-                    pid_str = current_process.pid if current_process else 'Idle'
-                    self.trace_log.append(f"T={self.clock.time}: Switch complete. P{pid_str} is now on CPU.")
-
+            
             elif current_process:
+                # Actual work happens here
                 remaining_times[current_process.pid] -= 1
                 current_job_runtime += 1
                 
-                # Check Completion
+                # Check Completion AFTER work is done
                 if remaining_times[current_process.pid] == 0:
-                    self._record_completion(current_process)
-                    current_process = None # Job done, CPU is free
+                    # Clock advances at the end of the loop, 
+                    # so completion is current_time + 1
+                    self._record_completion(current_process, self.clock.time + 1)
+                    current_process = None 
                     current_job_runtime = 0
             else:
+                self.total_idle_time += 1
                 self.trace_log.append(f"T={self.clock.time}: CPU Idle.")
             
             self.clock.tick()
 
-        return self._get_output()
+        return self._get_output(sum(p.burst_time for p in processes))
 
-    def _record_completion(self, process: Process):
-        """Helper to calculate metrics when a process finishes."""
-        
-        completion_time = self.clock.time + 1 # +1 because we finish at end of tick
-        turnaround = completion_time - process.arrival_time
+    def _record_completion(self, process: Process, finish_time: int):
+        turnaround = finish_time - process.arrival_time
         wait = turnaround - process.burst_time
-        
-        self.results.append(ProcessResult(
-            process, wait, turnaround, completion_time
-        ))
-        self.trace_log.append(f"T={completion_time}: Process {process.pid} FINISHED.")
+        self.results.append(ProcessResult(process, wait, turnaround, finish_time))
+        self.trace_log.append(f"T={finish_time}: Process {process.pid} FINISHED.")
 
-    def _get_output(self) -> Dict:
-        """Standardized dictionary output."""
+    def _get_output(self, total_burst: int) -> Dict:
+        total_time = self.clock.time
         avg_wait = sum(r.waiting_time for r in self.results) / len(self.results)
         avg_tat = sum(r.turnaround_time for r in self.results) / len(self.results)
         
+        # Engineering Metrics for Professor 2
+        utilization = (total_burst / total_time) * 100
+        efficiency = (total_burst / (total_burst + self.total_switch_time)) * 100
+
         return {
             "individual_results": [
-                {
-                    "pid": r.process.pid,
-                    "wait": r.waiting_time,
-                    "turnaround": r.turnaround_time,
-                    "completion": r.completion_time
-                } for r in self.results
+                {"pid": r.process.pid, "wait": r.waiting_time, "turnaround": r.turnaround_time, "completion": r.completion_time} 
+                for r in self.results
             ],
             "averages": {
                 "avg_waiting_time": round(avg_wait, 2),
-                "avg_turnaround_time": round(avg_tat, 2)
+                "avg_turnaround_time": round(avg_tat, 2),
+                "cpu_utilization": f"{utilization:.1f}%",
+                "hardware_efficiency": f"{efficiency:.1f}%"
             },
             "trace": self.trace_log
         }

@@ -82,30 +82,30 @@ class STCF(SchedulerPolicy):
         if not ready_queue and not current_process:
             return None
         
-        # 1. Find the shortest time in the ready queue
+        # 1. Find the best candidate in the ready queue
+        best_in_queue = None
         if ready_queue:
-            # Tie-breaker: If burst is same, pick lower PID for stability
+            # Tie-breaker: smallest remaining time, then lower PID
             best_in_queue = min(ready_queue, key=lambda p: (remaining_times[p.pid], p.pid))
-        else:
-            best_in_queue = None
 
-        # 2. Decision Logic: Only switch if the new guy is SHORTER than current
+        # 2. THE SNIPPET GOES HERE: Decision Logic
         if current_process:
             current_rem = remaining_times[current_process.pid]
             
-            # Only preempt if the new process is STRICTLY shorter
+            # Check if the new arrival is STRICTLY shorter than the current one
             if best_in_queue and remaining_times[best_in_queue.pid] < current_rem:
-                # Preempt!
+                # Preempt: Swap them out
                 ready_queue.append(current_process)
                 ready_queue.remove(best_in_queue)
                 return best_in_queue
-            else:
-                # Keep running the current guy (Avoids the Livelock)
-                return current_process
-        else:
-            # CPU was idle, just pick the best from queue
-            ready_queue.remove(best_in_queue)
-            return best_in_queue
+            
+            # No better candidate? Keep running the current process.
+            # This ensures (potential_next == current_process) in the Engine.
+            return current_process
+        
+        # 3. CPU was idle, just pick the best from queue
+        ready_queue.remove(best_in_queue)
+        return best_in_queue
 
 class RR(SchedulerPolicy):
     """
