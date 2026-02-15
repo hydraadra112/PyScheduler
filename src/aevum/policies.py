@@ -79,27 +79,33 @@ class STCF(SchedulerPolicy):
     is preempted and returned to the ready queue.
     """
     def get_next_process(self, ready_queue, current_process, _current_runtime, remaining_times):
-        # We need to look at EVERYONE (Current + Ready) to find the shortest remaining time
-        candidates = list(ready_queue)
-        if current_process:
-            candidates.append(current_process)
-            
-        if not candidates:
+        if not ready_queue and not current_process:
             return None
-            
-        # Pick the one with the smallest remaining time
-        best_choice = min(candidates, key=lambda p: remaining_times[p.pid])
         
-        # If we picked someone new, handle the queue logic
-        if best_choice != current_process:
-            # If we are swapping, put the old guy back in the ready queue
-            if current_process:
+        # 1. Find the shortest time in the ready queue
+        if ready_queue:
+            # Tie-breaker: If burst is same, pick lower PID for stability
+            best_in_queue = min(ready_queue, key=lambda p: (remaining_times[p.pid], p.pid))
+        else:
+            best_in_queue = None
+
+        # 2. Decision Logic: Only switch if the new guy is SHORTER than current
+        if current_process:
+            current_rem = remaining_times[current_process.pid]
+            
+            # Only preempt if the new process is STRICTLY shorter
+            if best_in_queue and remaining_times[best_in_queue.pid] < current_rem:
+                # Preempt!
                 ready_queue.append(current_process)
-            # Remove the new guy from the ready queue (if he was there)
-            if best_choice in ready_queue:
-                ready_queue.remove(best_choice)
-                
-        return best_choice
+                ready_queue.remove(best_in_queue)
+                return best_in_queue
+            else:
+                # Keep running the current guy (Avoids the Livelock)
+                return current_process
+        else:
+            # CPU was idle, just pick the best from queue
+            ready_queue.remove(best_in_queue)
+            return best_in_queue
 
 class RR(SchedulerPolicy):
     """
