@@ -1,6 +1,6 @@
 from typing import List, Dict, Union, Optional
-from aevum.types import Process, ProcessResult
-from aevum.policies import SchedulerPolicy
+from .types import Process, ProcessResult
+from .policies import SchedulerPolicy
 from dataclasses import dataclass
 
 class Clock:

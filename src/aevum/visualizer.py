@@ -1,5 +1,3 @@
-import sys
-
 class Visualizer:
     # ANSI Color Palette
     COLORS = {
