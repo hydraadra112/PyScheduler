@@ -52,6 +52,11 @@ class BaseEngine(ABC):
         else:
             efficiency = 0
 
+        if total_time > 0:
+            throughput = n_results / total_time
+        else:
+            throughput = 0
+
         return {
             "individual_results": [
                 {
@@ -72,6 +77,7 @@ class BaseEngine(ABC):
             },
             "structured_trace": self.tracer.get_structured_data(),
             "total_time": total_time,
+            "throughput": throughput
         }
 
 class BasicEngine(BaseEngine):
