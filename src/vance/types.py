@@ -103,55 +103,86 @@ class StatsCollector:
         self.results: List[ProcessResult] = []
 
     def record_completion(self, process: Process, finish_time: int) -> None:
+        """Calculates turnaround and waiting time for a finished process."""
         turnaround = finish_time - process.arrival_time
         wait = turnaround - process.burst_time
-        self.results.append(ProcessResult(process, wait, turnaround, finish_time))
+        
+        result = ProcessResult(process, wait, turnaround, finish_time)
+        self.results.append(result)
 
     def generate_report(self, total_time: int, total_burst: int, cores: List[Core], tracer: Tracer) -> Dict:
-        n_results = len(self.results)
-
-        avg_wait = sum(r.waiting_time for r in self.results) / n_results if n_results else 0
-        avg_tat = sum(r.turnaround_time for r in self.results) / n_results if n_results else 0
-
-        # Sum up the switch times from ALL cores
-        total_switch_time = sum(core.switch_time for core in cores)
+        """The main entry point for generating the final simulation report."""
         
-        if total_time > 0:
-            utilization = (total_burst / total_time) * 100
-        else:
-            utilization = 0
-        
-        if (total_burst + total_switch_time) > 0:
-            efficiency = (total_burst / (total_burst + total_switch_time)) * 100
-        else:
-            efficiency = 0
-        
-        if total_time > 0:
-            throughput = n_results / total_time
-        else:
-            throughput = 0
+        # 1. Individual Process Results
+        formatted_individual_results = []
+        for r in self.results:
+            data = {
+                "pid": r.process.pid,
+                "arrival": r.process.arrival_time,
+                "burst": r.process.burst_time,
+                "wait": r.waiting_time,
+                "turnaround": r.turnaround_time,
+                "completion": r.completion_time,
+            }
+            formatted_individual_results.append(data)
 
+        # 2. Average Calculations
+        averages = self._calculate_averages()
+
+        # 3. Hardware Performance Metrics
+        hardware_stats = self._calculate_hardware_metrics(total_time, total_burst, cores)
+
+        # 4. Final Compilation
         return {
-            "individual_results": [
-                {
-                    "pid": r.process.pid,
-                    "arrival": r.process.arrival_time,
-                    "burst": r.process.burst_time,
-                    "wait": r.waiting_time,
-                    "turnaround": r.turnaround_time,
-                    "completion": r.completion_time,
-                }
-                for r in self.results
-            ], 
+            "individual_results": formatted_individual_results,
             "averages": {
-                "avg_waiting_time": round(avg_wait, 2),
-                "avg_turnaround_time": round(avg_tat, 2),
-                "cpu_utilization": f"{utilization:.1f}%",
-                "hardware_efficiency": f"{efficiency:.1f}%",
-                "throughput": round(throughput, 4)
+                **averages,
+                **hardware_stats
             },
             "structured_trace": tracer.get_structured_data(),
             "total_time": total_time,
+        }
+
+    def _calculate_averages(self) -> Dict:
+        """Calculates mean Wait and Turnaround times."""
+        n_results = len(self.results)
+        if n_results == 0:
+            return {"avg_waiting_time": 0, "avg_turnaround_time": 0}
+
+        total_wait = 0
+        total_tat = 0
+        for r in self.results:
+            total_wait += r.waiting_time
+            total_tat += r.turnaround_time
+
+        return {
+            "avg_waiting_time": round(total_wait / n_results, 2),
+            "avg_turnaround_time": round(total_tat / n_results, 2)
+        }
+
+    def _calculate_hardware_metrics(self, total_time: int, total_burst: int, cores: List[Core]) -> Dict:
+        """ Calculate CPU utilization, throughput, and hardware efficiency """
+        if total_time == 0:
+            return {"cpu_utilization": "0%", "hardware_efficiency": "0%", "throughput": 0}
+
+        # Utilization: Was the CPU doing *something*? (Work + Switching)
+        total_switch_time = 0
+        for core in cores:
+            total_switch_time += core.switch_time
+        
+        busy_time = total_burst + total_switch_time
+        utilization = (busy_time / total_time) * 100
+
+        # Efficiency: Was the CPU doing *useful* work? (Just Burst)
+        efficiency = (total_burst / total_time) * 100
+
+        # Throughput: Processes finished per unit of time
+        throughput = len(self.results) / total_time
+
+        return {
+            "cpu_utilization": f"{min(utilization, 100.0):.1f}%",
+            "hardware_efficiency": f"{efficiency:.1f}%",
+            "throughput": round(throughput, 4)
         }
 
 class Clock:
