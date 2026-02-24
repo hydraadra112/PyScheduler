@@ -19,7 +19,7 @@ uv add vance      # vance natively uses uv!
 
 ```python
 # Sample implementation using the RR scheduler
-from vance import RR, SimulationEngine, Visualizer, Process
+from vance import RR, BasicEngine, Visualizer, Process
 
 p = [
 Process(pid=1, burst_time=15, arrival_time=0),
@@ -31,7 +31,7 @@ Process(pid=5, burst_time=14,  arrival_time=10)
 
 dispatch_latency = 3
 
-engine = SimulationEngine(RR(time_quantum=5), dispatch_latency)
+engine = BasicEngine(RR(time_quantum=5), dispatch_latency)
 res = engine.run(p)
 
 v = Visualizer()
@@ -39,6 +39,8 @@ v.render_gantt(res)
 v.display_summary(res)
 v.display_audit(res)
 ```
+
+Currently, this package, as of v0.1.1 only supports textbook algorithms (FCFS, RR, STCF, SJF, and Priority) in a unicore environment and a single queue approach.
 
 Sample Output:
 ![Sample Output of the Code Above](./public/images/sample_output.png)
@@ -88,6 +90,65 @@ class MyCustomPolicy(SchedulerPolicy):
             return current_process
         ready_queue.remove(best_in_queue)
         return best_in_queue
+```
+
+### Creating Custom Engines
+
+Vance is designed as a pluggable package. By inheriting from `BaseEngine`, you get the infrastructure (Clock, Tracer, Stats) for free, allowing you to focus purely on your custom scheduling logic—whether that’s specialized caching, power-aware scheduling, or complex multi-core orchestration.
+
+Below is a sample code for creating an engine that executes processes sequentially on a single core.
+
+```python
+from typing import List, Dict
+from vance.engine import BaseEngine
+from vance.types import Process, Core
+
+class TurboEngine(BaseEngine):
+    """
+    A custom minimalist engine that executes processes
+    sequentially on a single core.
+    """
+    def __init__(self):
+        # Initialize with a single core (ID 0)
+        super().__init__(cores=[Core(core_id=0)])
+
+    def run(self, processes: List[Process]) -> Dict:
+        # 1. Sort processes by arrival
+        incoming = sorted(processes, key=lambda p: p.arrival_time)
+        core = self.cores[0]
+        total_burst = sum(p.burst_time for p in processes)
+
+        # 2. The Execution Loop
+        while incoming or core.current_process:
+            # Handle arrivals
+            if incoming and incoming[0].arrival_time <= self.clock.time:
+                p = incoming.pop(0)
+                core.assign(p)
+                self.tracer.record(self.clock.time, "ARRIVAL", p.pid)
+
+            # Execute Work
+            if core.current_process:
+                self.tracer.record(self.clock.time, "EXEC", core.current_process.pid)
+                core.current_process.burst_time -= 1
+
+                # Check for completion
+                if core.current_process.burst_time == 0:
+                    self.stats.record_completion(core.current_process, self.clock.time + 1)
+                    core.current_process = None
+            else:
+                self.tracer.record(self.clock.time, "IDLE")
+
+            # 3. Advance the simulation clock
+            self.clock.tick()
+
+        # 4. Return the standardized stats report
+        return self.stats.generate_report(
+            self.clock.time,
+            total_burst,
+            self.cores,
+            self.tracer
+        )
+
 ```
 
 ### Accessing Raw Telemetry
