@@ -133,6 +133,9 @@ class Visualizer:
             f"Average Turnaround Time: {Visualizer._color(avgs['avg_turnaround_time'], 'green')}"
         )
         print(
+            f"Throughput:              {Visualizer._color(avgs['throughput'], 'cyan')} (Total Number of Results / Total Time)"
+        )
+        print(
             f"Hardware Efficiency:     {Visualizer._color(avgs['hardware_efficiency'], 'cyan')} (Actual Work / Total Time)"
         )
         print(
